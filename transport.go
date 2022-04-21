@@ -14,9 +14,9 @@ import (
 
 	"container/list"
 	"context"
-	tls "github.com/Carcraftz/utls"
 	"errors"
 	"fmt"
+	tls "github.com/Carcraftz/utls"
 	"io"
 	"log"
 	"net"
@@ -119,7 +119,6 @@ type Transport struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy func(*Request) (*url.URL, error)
-
 	// DialContext specifies the dial function for creating unencrypted TCP connections.
 	// If DialContext is nil (and the deprecated Dial below is also nil),
 	// then the transport dials using package net.

@@ -11,9 +11,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	tls "github.com/Carcraftz/utls"
 	"errors"
 	"fmt"
+	tls "github.com/Carcraftz/utls"
 	"io"
 	"io/ioutil"
 	"log"
@@ -96,7 +96,7 @@ type Transport struct {
 	// want to advertise an unlimited value to the peer, Transport
 	// interprets the highest possible value here (0xffffffff or 1<<32-1)
 	// to mean no limit.
-	MaxHeaderListSize uint32
+	// MaxHeaderListSize uint32
 
 	// StrictMaxConcurrentStreams controls whether the server's
 	// SETTINGS_MAX_CONCURRENT_STREAMS should be respected
@@ -144,19 +144,27 @@ type Transport struct {
 	connPoolOrDef ClientConnPool // non-nil version of ConnPool
 
 	// Settings should not include InitialWindowSize or HeaderTableSize, set that in Transport
-	Settings          []Setting
+	Settings      map[SettingID]uint32
+	SettingsOrder []SettingID
+	// Settings          []Setting
 	InitialWindowSize uint32 // if nil, will use global initialWindowSize
 	HeaderTableSize   uint32 // if nil, will use global initialHeaderTableSize
 }
 
 func (t *Transport) maxHeaderListSize() uint32 {
-	if t.MaxHeaderListSize == 0 {
+	maxHeaderListSize, ok := t.Settings[SettingMaxHeaderListSize]
+
+	if !ok {
+		maxHeaderListSize = 0
+	}
+
+	if maxHeaderListSize == 0 {
 		return 10 << 20
 	}
-	if t.MaxHeaderListSize == 0xffffffff {
+	if maxHeaderListSize == 0xffffffff {
 		return 0
 	}
-	return t.MaxHeaderListSize
+	return maxHeaderListSize
 }
 
 func (t *Transport) disableCompression() bool {
@@ -235,12 +243,20 @@ func configureTransports(t1 *http.Transport) (*Transport, error) {
 	//
 	// TODO: also add this to x/net/http2.Configure Transport, behind
 	// a +build go1.7 build tag:
-	if limit1 := t1.MaxResponseHeaderBytes; limit1 != 0 && t2.MaxHeaderListSize == 0 {
+
+	maxHeaderListSize, ok := t2.Settings[SettingMaxHeaderListSize]
+
+	if !ok {
+		// we specified in our custom map to not include SettingMaxHeaderListSize
+		return t2, nil
+	}
+
+	if limit1 := t1.MaxResponseHeaderBytes; limit1 != 0 && maxHeaderListSize == 0 {
 		const h2max = 1<<32 - 1
 		if limit1 >= h2max {
-			t2.MaxHeaderListSize = h2max
+			t2.Settings[SettingMaxHeaderListSize] = h2max
 		} else {
-			t2.MaxHeaderListSize = uint32(limit1)
+			t2.Settings[SettingMaxHeaderListSize] = uint32(limit1)
 		}
 	}
 	return t2, nil
@@ -714,11 +730,15 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 	cc.bw = bufio.NewWriter(stickyErrWriter{c, &cc.werr})
 	cc.br = bufio.NewReader(c)
 	cc.fr = NewFramer(cc.bw, cc.br)
-	if t.HeaderTableSize != 0 {
-		cc.fr.ReadMetaHeaders = hpack.NewDecoder(t.HeaderTableSize, nil)
+
+	customHeaderTableSize, ok := t.Settings[SettingHeaderTableSize]
+
+	if ok {
+		cc.fr.ReadMetaHeaders = hpack.NewDecoder(customHeaderTableSize, nil)
 	} else {
 		cc.fr.ReadMetaHeaders = hpack.NewDecoder(initialHeaderTableSize, nil)
 	}
+
 	cc.fr.MaxHeaderListSize = t.maxHeaderListSize()
 
 	// TODO: SetMaxDynamicTableSize, SetMaxDynamicTableSizeLimit on
@@ -740,21 +760,42 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 	if t.PushHandler != nil {
 		pushEnabled = 1
 	}
-	initialSettings = append(initialSettings, Setting{ID: SettingEnablePush, Val: pushEnabled})
 
-	setMaxHeader := false
+	//setMaxHeader := false
 	if t.Settings != nil {
-		for _, setting := range t.Settings {
-			if setting.ID == SettingMaxHeaderListSize {
-				setMaxHeader = true
+		// we need to iterate over the slice here not the map because of the random range over a map
+		for _, settingId := range t.SettingsOrder {
+			settingValue := t.Settings[settingId]
+
+			if settingId == SettingMaxHeaderListSize && settingValue != 0 {
+				// setMaxHeader = true
+				if settingValue != 0 {
+					initialSettings = append(initialSettings, Setting{ID: SettingMaxHeaderListSize, Val: settingValue})
+					continue
+				}
+
 			}
-			if setting.ID == SettingHeaderTableSize || setting.ID == SettingInitialWindowSize {
-				return nil, errSettingsIncludeIllegalSettings
+			if settingId == SettingHeaderTableSize || settingId == SettingInitialWindowSize {
+				// return nil, errSettingsIncludeIllegalSettings
 			}
-			initialSettings = append(initialSettings, setting)
+
+			initialSettings = append(initialSettings, Setting{ID: settingId, Val: settingValue})
 		}
+	} else {
+		// when we dont define a custom map on the transport we add Enable Push per default
+		initialSettings = append(initialSettings, Setting{ID: SettingEnablePush, Val: pushEnabled})
 	}
-	if t.InitialWindowSize != 0 {
+
+	if _, ok := t.Settings[SettingInitialWindowSize]; !ok {
+		initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: transportDefaultStreamFlow})
+	}
+
+	if _, ok := t.Settings[SettingHeaderTableSize]; !ok {
+		initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: initialHeaderTableSize})
+	}
+
+	// TODO: remove that
+	/*if t.InitialWindowSize != 0 {
 		initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: t.InitialWindowSize})
 	} else {
 		initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: transportDefaultStreamFlow})
@@ -764,9 +805,12 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 	} else {
 		initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: initialHeaderTableSize})
 	}
-	if max := t.maxHeaderListSize(); max != 0 && !setMaxHeader {
-		initialSettings = append(initialSettings, Setting{ID: SettingMaxHeaderListSize, Val: max})
-	}
+	*/
+
+	/*
+		if max := t.maxHeaderListSize(); max != 0 && !setMaxHeader {
+			initialSettings = append(initialSettings, Setting{ID: SettingMaxHeaderListSize, Val: max})
+		}*/
 
 	cc.bw.Write(clientPreface)
 	cc.fr.WriteSettings(initialSettings...)

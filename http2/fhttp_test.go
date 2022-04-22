@@ -2,12 +2,13 @@ package http2_test
 
 import (
 	"bytes"
-	tls "github.com/Carcraftz/utls"
+	gtls "crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"github.com/Carcraftz/fhttp/cookiejar"
 	"github.com/Carcraftz/fhttp/httptest"
+	tls "github.com/Carcraftz/utls"
 	"golang.org/x/net/publicsuffix"
 	"log"
 	ghttp "net/http"
@@ -79,15 +80,25 @@ func compareSettings(ID http2.SettingID, output uint32, expected uint32) error {
 
 // Round trip test, makes sure that the changes made doesn't break the library
 func TestRoundTrip(t *testing.T) {
-	settings := []http2.Setting{
-		{ID: http2.SettingHeaderTableSize, Val: 65536},
-		{ID: http2.SettingMaxConcurrentStreams, Val: 1000},
-		{ID: http2.SettingInitialWindowSize, Val: 6291456},
-		{ID: http2.SettingMaxFrameSize, Val: 16384},
-		{ID: http2.SettingMaxHeaderListSize, Val: 262144},
+	settings := map[http2.SettingID]uint32{
+		http2.SettingHeaderTableSize:      65536,
+		http2.SettingMaxConcurrentStreams: 1000,
+		http2.SettingInitialWindowSize:    6291456,
+		http2.SettingMaxFrameSize:         16384,
+		http2.SettingMaxHeaderListSize:    262144,
 	}
+
+	settingsOrder := []http2.SettingID{
+		http2.SettingHeaderTableSize,
+		http2.SettingMaxConcurrentStreams,
+		http2.SettingInitialWindowSize,
+		http2.SettingMaxFrameSize,
+		http2.SettingMaxHeaderListSize,
+	}
+
 	tr := http2.Transport{
-		Settings: settings,
+		Settings:      settings,
+		SettingsOrder: settingsOrder,
 	}
 	req, err := http.NewRequest("GET", "www.google.com", nil)
 	if err != nil {
@@ -214,7 +225,7 @@ func TestGClient_Load(t *testing.T) {
 		Transport: &ghttp.Transport{
 			ForceAttemptHTTP2: true,
 			Proxy:             ghttp.ProxyURL(u),
-			TLSClientConfig: &tls.Config{
+			TLSClientConfig: &gtls.Config{
 				RootCAs: pool,
 			},
 		},

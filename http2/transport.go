@@ -328,14 +328,15 @@ type ClientConn struct {
 // clientStream is the state for a single HTTP/2 stream. One of these
 // is created for each Transport.RoundTrip call.
 type clientStream struct {
-	cc           *ClientConn
-	req          *http.Request
-	trace        *httptrace.ClientTrace // or nil
-	ID           uint32
-	resc         chan resAndError
-	bufPipe      pipe   // buffered pipe with the flow-controlled response payload
-	startedWrite bool   // started request body write; guarded by cc.mu
-	on100        func() // optional code to run if get a 100 continue response
+	cc            *ClientConn
+	req           *http.Request
+	trace         *httptrace.ClientTrace // or nil
+	ID            uint32
+	resc          chan resAndError
+	requestedGzip bool
+	bufPipe       pipe   // buffered pipe with the flow-controlled response payload
+	startedWrite  bool   // started request body write; guarded by cc.mu
+	on100         func() // optional code to run if get a 100 continue response
 
 	flow        flow  // guarded by cc.mu
 	inflow      flow  // guarded by cc.mu
@@ -1153,6 +1154,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 	if err := checkConnHeaders(req); err != nil {
 		return nil, false, err
 	}
+
 	if cc.idleTimer != nil {
 		cc.idleTimer.Stop()
 	}
@@ -1172,11 +1174,12 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 	body := req.Body
 	contentLen := actualContentLength(req)
 	hasBody := contentLen != 0
+	requestedGzip := cc.requestGzip(req)
 
 	// we send: HEADERS{1}, CONTINUATION{0,} + DATA{0,} (DATA is
 	// sent by writeRequestBody below, along with any Trailers,
 	// again in form HEADERS{1}, CONTINUATION{0,})
-	hdrs, err := cc.encodeHeaders(req, trailers, contentLen)
+	hdrs, err := cc.encodeHeaders(req, requestedGzip, trailers, contentLen)
 	if err != nil {
 		cc.mu.Unlock()
 		return nil, false, err
@@ -1185,6 +1188,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 	cs := cc.newStream()
 	cs.req = req
 	cs.trace = httptrace.ContextClientTrace(req.Context())
+	cs.requestedGzip = requestedGzip
 	bodyWriter := cc.t.getBodyWriterState(cs, body)
 	cs.on100 = bodyWriter.on100
 
@@ -1588,7 +1592,7 @@ func (cs *clientStream) awaitFlowControl(maxBytes int) (taken int32, err error) 
 }
 
 // requires cc.mu be held.
-func (cc *ClientConn) encodeHeaders(req *http.Request, trailers string, contentLength int64) ([]byte, error) {
+func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trailers string, contentLength int64) ([]byte, error) {
 	cc.hbuf.Reset()
 
 	host := req.Host
@@ -1691,7 +1695,7 @@ func (cc *ClientConn) encodeHeaders(req *http.Request, trailers string, contentL
 		}
 
 		// Does not include accept-encoding header if its defined in req.Header
-		if _, ok := hdrs["accept-encoding"]; !ok {
+		if _, ok := hdrs["accept-encoding"]; !ok && addGzipHeader {
 			hdrs["accept-encoding"] = []string{"gzip, deflate, br"}
 		}
 
@@ -2239,6 +2243,8 @@ func (rl *clientConnReadLoop) handleResponse(cs *clientStream, f *MetaHeadersFra
 	cs.bytesRemain = res.ContentLength
 	res.Body = transportResponseBody{cs}
 	go cs.awaitRequestCancel(cs.req)
+
+	res.Body = http.DecompressBody(res)
 
 	return res, nil
 }

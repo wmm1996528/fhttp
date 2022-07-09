@@ -1,9 +1,12 @@
 module github.com/Carcraftz/fhttp
 
-go 1.16
+go 1.18
 
 require (
-	github.com/andybalholm/brotli v1.0.3
-	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b
-	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
+	github.com/Carcraftz/utls v0.0.0-20220413235215-6b7c52fd78b6
+	github.com/andybalholm/brotli v1.0.4
+	golang.org/x/net v0.0.0-20220420153159-1850ba15e1be
+	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171
 )
+
+replace github.com/Carcraftz/utls => ../utls

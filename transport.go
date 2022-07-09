@@ -15,13 +15,10 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
-	"github.com/andybalholm/brotli"
-
 	"container/list"
 	"context"
 	"errors"
 	"fmt"
-	tls "github.com/Carcraftz/utls"
 	"io"
 	"log"
 	"net"
@@ -33,6 +30,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/andybalholm/brotli"
+
+	tls "github.com/Carcraftz/utls"
 
 	"github.com/Carcraftz/fhttp/httptrace"
 
@@ -278,6 +279,8 @@ type Transport struct {
 	nextProtoOnce      sync.Once
 	H2transport        h2Transport // non-nil if http2 wired up
 	tlsNextProtoWasNil bool        // whether TLSNextProto was nil when the Once fired
+
+	PseudoHeaderOrder []string
 
 	// ForceAttemptHTTP2 controls whether HTTP/2 is enabled when a non-zero
 	// Dial, DialTLS, or DialContext func or TLSClientConfig is provided.

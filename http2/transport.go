@@ -13,7 +13,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	tls "github.com/Carcraftz/utls"
 	"io"
 	"io/ioutil"
 	"log"
@@ -27,6 +26,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	tls "github.com/Carcraftz/utls"
 
 	http "github.com/Carcraftz/fhttp"
 	"github.com/Carcraftz/fhttp/httptrace"
@@ -144,8 +145,10 @@ type Transport struct {
 	connPoolOrDef ClientConnPool // non-nil version of ConnPool
 
 	// Settings should not include InitialWindowSize or HeaderTableSize, set that in Transport
-	Settings      map[SettingID]uint32
-	SettingsOrder []SettingID
+	Settings          map[SettingID]uint32
+	SettingsOrder     []SettingID
+	PseudoHeaderOrder []string
+
 	// Settings          []Setting
 	InitialWindowSize uint32 // if nil, will use global initialWindowSize
 	HeaderTableSize   uint32 // if nil, will use global initialHeaderTableSize
@@ -1648,6 +1651,12 @@ func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trail
 		// [RFC3986]).
 
 		pHeaderOrder, ok := req.Header[http.PHeaderOrderKey]
+
+		if !ok {
+			pHeaderOrder = cc.t.PseudoHeaderOrder
+			ok = true
+		}
+
 		m := req.Method
 		if m == "" {
 			m = http.MethodGet

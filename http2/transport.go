@@ -148,6 +148,7 @@ type Transport struct {
 	Settings          map[SettingID]uint32
 	SettingsOrder     []SettingID
 	PseudoHeaderOrder []string
+	ConnectionFlow    uint32
 
 	// Settings          []Setting
 	InitialWindowSize uint32 // if nil, will use global initialWindowSize
@@ -790,35 +791,20 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 		initialSettings = append(initialSettings, Setting{ID: SettingEnablePush, Val: pushEnabled})
 	}
 
-	if _, ok := t.Settings[SettingInitialWindowSize]; !ok {
-		initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: transportDefaultStreamFlow})
-	}
+	/*	if _, ok := t.Settings[SettingInitialWindowSize]; !ok {
+			initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: transportDefaultStreamFlow})
+		}
 
-	if _, ok := t.Settings[SettingHeaderTableSize]; !ok {
-		initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: initialHeaderTableSize})
-	}
-
-	// TODO: remove that
-	/*if t.InitialWindowSize != 0 {
-		initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: t.InitialWindowSize})
-	} else {
-		initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: transportDefaultStreamFlow})
-	}
-	if t.HeaderTableSize != 0 {
-		initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: t.HeaderTableSize})
-	} else {
-		initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: initialHeaderTableSize})
-	}
-	*/
-
-	/*
-		if max := t.maxHeaderListSize(); max != 0 && !setMaxHeader {
-			initialSettings = append(initialSettings, Setting{ID: SettingMaxHeaderListSize, Val: max})
+		if _, ok := t.Settings[SettingHeaderTableSize]; !ok {
+			initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: initialHeaderTableSize})
 		}*/
 
 	cc.bw.Write(clientPreface)
 	cc.fr.WriteSettings(initialSettings...)
-	cc.fr.WriteWindowUpdate(0, transportDefaultConnFlow)
+
+	//
+
+	cc.fr.WriteWindowUpdate(0, t.ConnectionFlow)
 	cc.inflow.add(transportDefaultConnFlow + initialWindowSize)
 	cc.bw.Flush()
 	if cc.werr != nil {

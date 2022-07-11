@@ -281,6 +281,7 @@ type Transport struct {
 	tlsNextProtoWasNil bool        // whether TLSNextProto was nil when the Once fired
 
 	PseudoHeaderOrder []string
+	ConnectionFlow    uint32
 
 	// ForceAttemptHTTP2 controls whether HTTP/2 is enabled when a non-zero
 	// Dial, DialTLS, or DialContext func or TLSClientConfig is provided.

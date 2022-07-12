@@ -18,5 +18,5 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 )
 
-// replace github.com/Carcraftz/utls => ../utls
-replace github.com/Carcraftz/utls => github.com/bogdanfinn/utls v0.0.1
+//replace github.com/Carcraftz/utls => ../utls
+replace github.com/Carcraftz/utls => github.com/bogdanfinn/utls v0.0.2

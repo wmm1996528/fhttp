@@ -147,12 +147,18 @@ type Transport struct {
 	// Settings should not include InitialWindowSize or HeaderTableSize, set that in Transport
 	Settings          map[SettingID]uint32
 	SettingsOrder     []SettingID
+	Priorities        []Priority
 	PseudoHeaderOrder []string
 	ConnectionFlow    uint32
 
 	// Settings          []Setting
 	InitialWindowSize uint32 // if nil, will use global initialWindowSize
 	HeaderTableSize   uint32 // if nil, will use global initialHeaderTableSize
+}
+
+type Priority struct {
+	StreamID      uint32
+	PriorityParam PriorityParam
 }
 
 func (t *Transport) maxHeaderListSize() uint32 {
@@ -802,6 +808,9 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 	cc.bw.Write(clientPreface)
 	cc.fr.WriteSettings(initialSettings...)
 
+	for _, priority := range t.Priorities {
+		cc.fr.WritePriority(priority.StreamID, priority.PriorityParam)
+	}
 	//
 
 	cc.fr.WriteWindowUpdate(0, t.ConnectionFlow)

@@ -12,7 +12,6 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"context"
-	tls "github.com/Carcraftz/utls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,11 +35,13 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/Carcraftz/fhttp"
-	"github.com/Carcraftz/fhttp/httptest"
-	"github.com/Carcraftz/fhttp/httputil"
-	"github.com/Carcraftz/fhttp/internal"
-	"github.com/Carcraftz/fhttp/internal/testenv"
+	tls "github.com/bogdanfinn/utls"
+
+	. "github.com/bogdanfinn/fhttp"
+	"github.com/bogdanfinn/fhttp/httptest"
+	"github.com/bogdanfinn/fhttp/httputil"
+	"github.com/bogdanfinn/fhttp/internal"
+	"github.com/bogdanfinn/fhttp/internal/testenv"
 )
 
 type dummyAddr string

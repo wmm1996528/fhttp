@@ -778,17 +778,15 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 		for _, settingId := range t.SettingsOrder {
 			settingValue := t.Settings[settingId]
 
-			if settingId == SettingMaxHeaderListSize && settingValue != 0 {
-				// setMaxHeader = true
-				if settingValue != 0 {
-					initialSettings = append(initialSettings, Setting{ID: SettingMaxHeaderListSize, Val: settingValue})
-					continue
-				}
+			/*
+				if settingId == SettingMaxHeaderListSize && settingValue != 0 {
+					// setMaxHeader = true
+					if settingValue != 0 {
+						initialSettings = append(initialSettings, Setting{ID: SettingMaxHeaderListSize, Val: settingValue})
+						continue
+					}
 
-			}
-			if settingId == SettingHeaderTableSize || settingId == SettingInitialWindowSize {
-				// return nil, errSettingsIncludeIllegalSettings
-			}
+				}*/
 
 			initialSettings = append(initialSettings, Setting{ID: settingId, Val: settingValue})
 		}
@@ -797,21 +795,12 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 		initialSettings = append(initialSettings, Setting{ID: SettingEnablePush, Val: pushEnabled})
 	}
 
-	/*	if _, ok := t.Settings[SettingInitialWindowSize]; !ok {
-			initialSettings = append(initialSettings, Setting{ID: SettingInitialWindowSize, Val: transportDefaultStreamFlow})
-		}
-
-		if _, ok := t.Settings[SettingHeaderTableSize]; !ok {
-			initialSettings = append(initialSettings, Setting{ID: SettingHeaderTableSize, Val: initialHeaderTableSize})
-		}*/
-
 	cc.bw.Write(clientPreface)
 	cc.fr.WriteSettings(initialSettings...)
 
 	for _, priority := range t.Priorities {
 		cc.fr.WritePriority(priority.StreamID, priority.PriorityParam)
 	}
-	//
 
 	cc.fr.WriteWindowUpdate(0, t.ConnectionFlow)
 	cc.inflow.add(transportDefaultConnFlow + initialWindowSize)

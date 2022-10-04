@@ -161,6 +161,11 @@ type Priority struct {
 	PriorityParam PriorityParam
 }
 
+// be careful what you are doing here...
+func (t *Transport) GetT1() *http.Transport {
+	return t.t1
+}
+
 func (t *Transport) maxHeaderListSize() uint32 {
 	maxHeaderListSize, ok := t.Settings[SettingMaxHeaderListSize]
 

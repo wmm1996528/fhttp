@@ -2239,7 +2239,8 @@ func (pc *persistConn) readLoopPeekFailLocked(peekErr error) {
 			pc.closeLocked(errServerClosedIdle)
 			return
 		} else {
-			log.Printf("Unsolicited response received on idle HTTP channel starting with %q; err=%v", buf, peekErr)
+			// Removed with http1 enforcing option
+			// log.Printf("Unsolicited response received on idle HTTP channel starting with %q; err=%v", buf, peekErr)
 		}
 	}
 	if peekErr == io.EOF {

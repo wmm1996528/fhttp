@@ -148,6 +148,7 @@ type Transport struct {
 	Settings          map[SettingID]uint32
 	SettingsOrder     []SettingID
 	Priorities        []Priority
+	HeaderPriority    *PriorityParam
 	PseudoHeaderOrder []string
 	ConnectionFlow    uint32
 
@@ -803,11 +804,12 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 	cc.bw.Write(clientPreface)
 	cc.fr.WriteSettings(initialSettings...)
 
+	cc.fr.WriteWindowUpdate(0, t.ConnectionFlow)
+
 	for _, priority := range t.Priorities {
 		cc.fr.WritePriority(priority.StreamID, priority.PriorityParam)
 	}
 
-	cc.fr.WriteWindowUpdate(0, t.ConnectionFlow)
 	cc.inflow.add(transportDefaultConnFlow + initialWindowSize)
 	cc.bw.Flush()
 	if cc.werr != nil {
@@ -1369,15 +1371,22 @@ func (cc *ClientConn) writeHeaders(streamID uint32, endStream bool, maxFrameSize
 		hdrs = hdrs[len(chunk):]
 		endHeaders := len(hdrs) == 0
 		if first {
+			defaultHeaderPriorityParam := PriorityParam{
+				Exclusive: true,
+				Weight:    255,
+				StreamDep: 0,
+			}
+
+			if cc.t.HeaderPriority != nil {
+				defaultHeaderPriorityParam = *cc.t.HeaderPriority
+			}
+
 			cc.fr.WriteHeaders(HeadersFrameParam{
 				StreamID:      streamID,
 				BlockFragment: chunk,
 				EndStream:     endStream,
 				EndHeaders:    endHeaders,
-				Priority: PriorityParam{
-					Exclusive: true,
-					Weight:    255,
-				},
+				Priority:      defaultHeaderPriorityParam,
 			})
 			first = false
 		} else {

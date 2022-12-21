@@ -808,6 +808,7 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 
 	for _, priority := range t.Priorities {
 		cc.fr.WritePriority(priority.StreamID, priority.PriorityParam)
+		cc.nextStreamID = priority.StreamID + 2
 	}
 
 	cc.inflow.add(transportDefaultConnFlow + initialWindowSize)

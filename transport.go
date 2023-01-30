@@ -2868,22 +2868,27 @@ func (cl *connLRU) len() int {
 
 func DecompressBody(res *Response) io.ReadCloser {
 	ce := res.Header.Get("Content-Encoding")
+
 	res.ContentLength = -1
 	res.Uncompressed = true
 
-	switch ce {
+	return DecompressBodyByType(res.Body, ce)
+}
+
+func DecompressBodyByType(body io.ReadCloser, contentType string) io.ReadCloser {
+	switch contentType {
 	case "gzip":
 		return &gzipReader{
-			body: res.Body,
+			body: body,
 		}
 	case "br":
 		return &brReader{
-			body: res.Body,
+			body: body,
 		}
 	case "deflate":
-		return identifyDeflate(res.Body)
+		return identifyDeflate(body)
 	default:
-		return res.Body
+		return body
 	}
 }
 

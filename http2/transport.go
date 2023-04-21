@@ -2260,7 +2260,11 @@ func (rl *clientConnReadLoop) handleResponse(cs *clientStream, f *MetaHeadersFra
 	res.Body = transportResponseBody{cs}
 	go cs.awaitRequestCancel(cs.req)
 
-	res.Body = http.DecompressBody(res)
+	// Make the behavior similar to http1. If DisableCompression is true,
+	// requestedGzip will be set to false
+	if cs.requestedGzip {
+		res.Body = http.DecompressBody(res)
+	}
 
 	return res, nil
 }

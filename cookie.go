@@ -377,7 +377,11 @@ func sanitizeCookieValue(v string) string {
 }
 
 func validCookieValueByte(b byte) bool {
-	return 0x20 <= b && b < 0x7f && b != '"' && b != ';' && b != '\\'
+	return 0x20 <= b &&
+		b < 0x7f &&
+		// b != '"' &&
+		b != ';' &&
+		b != '\\'
 }
 
 // path-av           = "Path=" path-value

@@ -54,7 +54,6 @@ import (
 // with the expectation that the Jar will insert those mutated cookies
 // with the updated Values (assuming the origin matches).
 // If Jar is nil, the initial cookies are forwarded without change.
-//
 type Client struct {
 	// Transport specifies the mechanism by which individual
 	// HTTP requests are made.
@@ -424,11 +423,11 @@ func basicAuth(username, password string) string {
 // the following redirect codes, Get follows the redirect, up to a
 // maximum of 10 redirects:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
-//    308 (Permanent Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
+//	308 (Permanent Redirect)
 //
 // An error is returned if there were too many redirects or if there
 // was an HTTP protocol error. A non-2xx response doesn't cause an
@@ -451,11 +450,11 @@ func Get(url string) (resp *Response, err error) {
 // following redirect codes, Get follows the redirect after calling the
 // Client's CheckRedirect function:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
-//    308 (Permanent Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
+//	308 (Permanent Redirect)
 //
 // An error is returned if the Client's CheckRedirect function fails
 // or if there was an HTTP protocol error. A non-2xx response doesn't
@@ -514,17 +513,6 @@ func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirect
 		shouldRedirect = true
 		includeBody = true
 
-		// Treat 307 and 308 specially, since they're new in
-		// Go 1.8, and they also require re-sending the request body.
-		if resp.Header.Get("Location") == "" {
-			// 308s have been observed in the wild being served
-			// without Location headers. Since Go 1.7 and earlier
-			// didn't follow these codes, just stop here instead
-			// of returning an error.
-			// See Issue 17773.
-			shouldRedirect = false
-			break
-		}
 		if ireq.GetBody == nil && ireq.outgoingLength() != 0 {
 			// We had a request body, and 307/308 require
 			// re-sending it, but GetBody is not defined. So just
@@ -634,8 +622,10 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 		if len(reqs) > 0 {
 			loc := resp.Header.Get("Location")
 			if loc == "" {
-				resp.closeBody()
-				return nil, uerr(fmt.Errorf("%d response missing Location header", resp.StatusCode))
+				// While most 3xx responses include a Location, it is not
+				// required and 3xx responses without a Location have been
+				// observed in the wild. See issues #17773 and #49281.
+				return resp, nil
 			}
 			u, err := req.URL.Parse(loc)
 			if err != nil {
@@ -882,11 +872,11 @@ func (c *Client) PostForm(url string, data url.Values) (resp *Response, err erro
 // the following redirect codes, Head follows the redirect, up to a
 // maximum of 10 redirects:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
-//    308 (Permanent Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
+//	308 (Permanent Redirect)
 //
 // Head is a wrapper around DefaultClient.Head
 func Head(url string) (resp *Response, err error) {
@@ -897,11 +887,11 @@ func Head(url string) (resp *Response, err error) {
 // following redirect codes, Head follows the redirect after calling the
 // Client's CheckRedirect function:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
-//    308 (Permanent Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
+//	308 (Permanent Redirect)
 func (c *Client) Head(url string) (resp *Response, err error) {
 	req, err := NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -927,9 +917,9 @@ func (c *Client) CloseIdleConnections() {
 }
 
 // cancelTimerBody is an io.ReadCloser that wraps rc with two features:
-// 1) on Read error or close, the stop func is called.
-// 2) On Read failure, if reqDidTimeout is true, the error is wrapped and
-//    marked as net.Error that hit its timeout.
+//  1. on Read error or close, the stop func is called.
+//  2. On Read failure, if reqDidTimeout is true, the error is wrapped and
+//     marked as net.Error that hit its timeout.
 type cancelTimerBody struct {
 	stop          func() // stops the time.Timer waiting to cancel the request
 	rc            io.ReadCloser

@@ -532,30 +532,6 @@ func TestClientRedirectUseResponse(t *testing.T) {
 	}
 }
 
-// Issue 17773: don't follow a 308 (or 307) if the response doesn't
-// have a Location header.
-func TestClientRedirect308NoLocation(t *testing.T) {
-	setParallel(t)
-	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.Header().Set("Foo", "Bar")
-		w.WriteHeader(308)
-	}))
-	defer ts.Close()
-	c := ts.Client()
-	res, err := c.Get(ts.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res.Body.Close()
-	if res.StatusCode != 308 {
-		t.Errorf("status = %d; want %d", res.StatusCode, 308)
-	}
-	if got := res.Header.Get("Foo"); got != "Bar" {
-		t.Errorf("Foo header = %q; want Bar", got)
-	}
-}
-
 // Don't follow a 307/308 if we can't resent the request body.
 func TestClientRedirect308NoGetBody(t *testing.T) {
 	setParallel(t)

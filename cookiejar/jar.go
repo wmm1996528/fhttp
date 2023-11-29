@@ -19,9 +19,9 @@ import (
 )
 
 // PublicSuffixList provides the public suffix of a domain. For example:
-//      - the public suffix of "example.com" is "com",
-//      - the public suffix of "foo1.foo2.foo3.co.uk" is "co.uk", and
-//      - the public suffix of "bar.pvt.k12.ma.us" is "pvt.k12.ma.us".
+//   - the public suffix of "example.com" is "com",
+//   - the public suffix of "foo1.foo2.foo3.co.uk" is "co.uk", and
+//   - the public suffix of "bar.pvt.k12.ma.us" is "pvt.k12.ma.us".
 //
 // Implementations of PublicSuffixList must be safe for concurrent use by
 // multiple goroutines.
@@ -218,7 +218,13 @@ func (j *Jar) cookies(u *url.URL, now time.Time) (cookies []*http.Cookie) {
 		return s[i].seqNum < s[j].seqNum
 	})
 	for _, e := range selected {
-		cookies = append(cookies, &http.Cookie{Name: e.Name, Value: e.Value})
+		cookies = append(cookies, &http.Cookie{
+			Name:    e.Name,
+			Value:   e.Value,
+			Path:    e.Path,
+			Domain:  e.Domain,
+			Expires: e.Expires,
+		})
 	}
 
 	return cookies

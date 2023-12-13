@@ -78,7 +78,6 @@ func (pr *PushedRequest) ReadResponse(ctx context.Context) (*http.Response, erro
 		return nil, pr.pushedStream.resetErr
 	case resErr := <-pr.pushedStream.resc:
 		if resErr.err != nil {
-			fmt.Println(resErr.err.Error())
 			pr.Cancel()
 			pr.pushedStream.bufPipe.CloseWithError(resErr.err)
 			return nil, resErr.err

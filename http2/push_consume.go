@@ -6,7 +6,6 @@ package http2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 
 	http "github.com/bogdanfinn/fhttp"

@@ -15,7 +15,6 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
-	"compress/zstd"
 	"container/list"
 	"context"
 	"errors"
@@ -33,6 +32,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 
 	tls "github.com/bogdanfinn/utls"
 
@@ -1792,7 +1792,6 @@ var _ io.ReaderFrom = (*persistConnWriter)(nil)
 //	socks5://proxy.com|https|foo.com  socks5 to proxy, then https to foo.com
 //	https://proxy.com|https|foo.com   https to proxy, then CONNECT to foo.com
 //	https://proxy.com|http            https to proxy, http to anywhere after that
-//
 type connectMethod struct {
 	_            incomparable
 	proxyURL     *url.URL // nil for no proxy, else full proxy URL
@@ -2569,7 +2568,7 @@ func (pc *persistConn) roundTrip(req *transportRequest) (resp *Response, err err
 	}
 
 	// Set gzip to true if the caller's Accept-Encoding includes gzip.
-	if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") || strings.Contains(req.Header.get("accept-encoding"), "gzip") {
+	if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 		requestedGzip = true
 	}
 

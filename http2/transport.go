@@ -39,9 +39,9 @@ import (
 
 const (
 	defaultUserAgent = "Go-http-client/2.0"
-	// transportDefaultConnFlow is how many connection-level flow control
+	// TransportDefaultConnFlow is how many connection-level flow control
 	// tokens we give the server at start-up, past the default 64k.
-	transportDefaultConnFlow = 15663105
+	TransportDefaultConnFlow = 15663105
 
 	// transportDefaultStreamFlow is how many stream-level flow
 	// control tokens we announce to the peer, and how many bytes
@@ -754,16 +754,41 @@ func (t *Transport) NewClientConn(c net.Conn) (*ClientConn, error) {
 }
 
 func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*ClientConn, error) {
+	initialWindowSize := initialWindowSize
+	maxFrameSize := 16 << 10
+	maxConcurrentStreams := 1000
+	maxHeaderListSize := 2 ^ 64 - 1
+
+	setInitialWindowSize, ok := t.Settings[SettingInitialWindowSize]
+	if ok {
+		initialWindowSize = int(setInitialWindowSize)
+	}
+
+	setMaxFrameSize, ok := t.Settings[SettingMaxFrameSize]
+	if ok {
+		maxFrameSize = int(setMaxFrameSize)
+	}
+
+	setMaxConcurrentStreams, ok := t.Settings[SettingMaxConcurrentStreams]
+	if ok {
+		maxConcurrentStreams = int(setMaxConcurrentStreams)
+	}
+
+	setMaxHeaderListSize, ok := t.Settings[SettingMaxHeaderListSize]
+	if ok {
+		maxHeaderListSize = int(setMaxHeaderListSize)
+	}
+
 	cc := &ClientConn{
 		t:                     t,
 		tconn:                 c,
 		dialedAddr:            addr,
 		readerDone:            make(chan struct{}),
 		nextStreamID:          1,
-		maxFrameSize:          16 << 10,           // spec default
-		initialWindowSize:     65535,              // spec default
-		maxConcurrentStreams:  1000,               // "infinite", per spec. 1000 seems good enough.
-		peerMaxHeaderListSize: 0xffffffffffffffff, // "infinite", per spec. Use 2^64-1 instead.
+		maxFrameSize:          uint32(maxFrameSize),         // spec default
+		initialWindowSize:     uint32(initialWindowSize),    // spec default
+		maxConcurrentStreams:  uint32(maxConcurrentStreams), // "infinite", per spec. 1000 seems good enough.
+		peerMaxHeaderListSize: uint64(maxHeaderListSize),    // "infinite", per spec. Use 2^64-1 instead.
 		streams:               make(map[uint32]*clientStream),
 		singleUse:             singleUse,
 		wantSettingsAck:       true,
@@ -849,7 +874,9 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 		cc.nextStreamID = priority.StreamID + 2
 	}
 
-	cc.inflow.add(transportDefaultConnFlow + initialWindowSize)
+	//cc.inflow.add(transportDefaultConnFlow + initialWindowSize)
+
+	cc.inflow.add(int32(t.ConnectionFlow) + int32(initialWindowSize))
 	cc.bw.Flush()
 	if cc.werr != nil {
 		cc.Close()
@@ -1978,7 +2005,7 @@ func (cc *ClientConn) newStreamWithID(streamID uint32, incNext bool) *clientStre
 	}
 	cs.flow.add(int32(cc.initialWindowSize))
 	cs.flow.setConnFlow(&cc.flow)
-	cs.inflow.add(transportDefaultStreamFlow)
+	cs.inflow.add(int32(cc.initialWindowSize))
 	cs.inflow.setConnFlow(&cc.inflow)
 	cc.streams[cs.ID] = cs
 
@@ -2019,14 +2046,16 @@ func (cc *ClientConn) streamByID(id uint32, andRemove bool) *clientStream {
 
 // clientConnReadLoop is the state owned by the clientConn's frame-reading readLoop.
 type clientConnReadLoop struct {
-	_             incomparable
-	cc            *ClientConn
-	closeWhenIdle bool
+	_                 incomparable
+	cc                *ClientConn
+	closeWhenIdle     bool
+	connectionFlow    int32
+	initialWindowSize int
 }
 
 // readLoop runs in its own goroutine and reads and dispatches frames.
 func (cc *ClientConn) readLoop() {
-	rl := &clientConnReadLoop{cc: cc}
+	rl := &clientConnReadLoop{cc: cc, connectionFlow: int32(cc.t.ConnectionFlow), initialWindowSize: int(cc.t.InitialWindowSize)}
 	defer rl.cleanup()
 	cc.readerErr = rl.run()
 	if ce, ok := cc.readerErr.(ConnectionError); ok {
@@ -2341,7 +2370,7 @@ func (rl *clientConnReadLoop) handleResponse(cs *clientStream, f *MetaHeadersFra
 
 	cs.bufPipe = pipe{b: &dataBuffer{expected: res.ContentLength}}
 	cs.bytesRemain = res.ContentLength
-	res.Body = transportResponseBody{cs}
+	res.Body = transportResponseBody{cs: cs, connectionFlow: rl.connectionFlow, initialWindowSize: rl.initialWindowSize}
 	go cs.awaitRequestCancel(cs.req)
 
 	// Make the behavior similar to http1. If DisableCompression is true,
@@ -2386,7 +2415,9 @@ func (rl *clientConnReadLoop) processTrailers(cs *clientStream, f *MetaHeadersFr
 // Response.Body. It is an io.ReadCloser. On Read, it reads from cs.body.
 // On Close it sends RST_STREAM if EOF wasn't already seen.
 type transportResponseBody struct {
-	cs *clientStream
+	cs                *clientStream
+	connectionFlow    int32
+	initialWindowSize int
 }
 
 func (b transportResponseBody) Read(p []byte) (n int, err error) {
@@ -2426,8 +2457,8 @@ func (b transportResponseBody) Read(p []byte) (n int, err error) {
 
 	var connAdd, streamAdd int32
 	// Check the conn-level first, before the stream-level.
-	if v := cc.inflow.available(); v < transportDefaultConnFlow/2 {
-		connAdd = transportDefaultConnFlow - v
+	if v := cc.inflow.available(); v < int32(cc.initialWindowSize)/2 {
+		connAdd = int32(cc.initialWindowSize) - v
 		cc.inflow.add(connAdd)
 	}
 	if err == nil { // No need to refresh if the stream is over or failed.

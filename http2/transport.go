@@ -757,7 +757,7 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 	initialWindowSize := initialWindowSize
 	maxFrameSize := 16 << 10
 	maxConcurrentStreams := 1000
-	var maxHeaderListSize uint64 = 0xffffffffffffffff
+	maxHeaderListSize := 2 ^ 64 - 1
 
 	setInitialWindowSize, ok := t.Settings[SettingInitialWindowSize]
 	if ok {
@@ -776,7 +776,7 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 
 	setMaxHeaderListSize, ok := t.Settings[SettingMaxHeaderListSize]
 	if ok {
-		maxHeaderListSize = uint64(setMaxHeaderListSize)
+		maxHeaderListSize = int(setMaxHeaderListSize)
 	}
 
 	cc := &ClientConn{
@@ -788,7 +788,7 @@ func (t *Transport) newClientConn(c net.Conn, addr string, singleUse bool) (*Cli
 		maxFrameSize:          uint32(maxFrameSize),         // spec default
 		initialWindowSize:     uint32(initialWindowSize),    // spec default
 		maxConcurrentStreams:  uint32(maxConcurrentStreams), // "infinite", per spec. 1000 seems good enough.
-		peerMaxHeaderListSize: maxHeaderListSize,            // "infinite", per spec. Use 2^64-1 instead.
+		peerMaxHeaderListSize: uint64(maxHeaderListSize),    // "infinite", per spec. Use 2^64-1 instead.
 		streams:               make(map[uint32]*clientStream),
 		singleUse:             singleUse,
 		wantSettingsAck:       true,

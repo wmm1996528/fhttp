@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"sync"
 
-	http "github.com/bogdanfinn/fhttp"
+	http "github.com/wmm1996528/fhttp"
 )
 
 // hello world, the web server
